@@ -13,6 +13,16 @@ from .attachments import (
     MAX_FILE_SIZE_MB,
 )
 from .chat import ChatService
+from .document import (
+    GeneratedDocument,
+    detect_document_marker,
+    extract_document_content,
+    generate_filename_from_content,
+    extract_title_from_content,
+    add_metadata_frontmatter,
+    save_document,
+    can_generate_document,
+)
 
 __all__ = [
     "ChatService",
@@ -26,4 +36,12 @@ __all__ = [
     "SUPPORTED_IMAGE_FORMATS",
     "SUPPORTED_DOCUMENT_FORMATS",
     "MAX_FILE_SIZE_MB",
+    "GeneratedDocument",
+    "detect_document_marker",
+    "extract_document_content",
+    "generate_filename_from_content",
+    "extract_title_from_content",
+    "add_metadata_frontmatter",
+    "save_document",
+    "can_generate_document",
 ]

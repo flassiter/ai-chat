@@ -24,6 +24,10 @@ from ai_chat.ui.styles import (
     get_copy_button_style,
     ThemeType,
 )
+from ai_chat.services.document import (
+    extract_document_content,
+    can_generate_document,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +69,13 @@ class ChatDisplay(QWidget):
         self.copy_button.clicked.connect(self._on_copy_last)
         self.copy_button.setEnabled(False)
 
+        # Create document button
+        self.document_button = QPushButton("📄 Save as Document")
+        self.document_button.setStyleSheet(get_copy_button_style(theme))
+        self.document_button.clicked.connect(self._on_document_clicked)
+        self.document_button.setEnabled(False)
+        self.document_button.hide()  # Initially hidden
+
         # Copy feedback label
         self.copy_feedback = QLabel("")
         self.copy_feedback.setStyleSheet("color: #6c9e4e; font-size: 12px;")
@@ -78,6 +89,7 @@ class ChatDisplay(QWidget):
         # Button bar
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.copy_button)
+        button_layout.addWidget(self.document_button)
         button_layout.addWidget(self.copy_feedback)
         button_layout.addStretch()
 
@@ -160,6 +172,15 @@ class ChatDisplay(QWidget):
         # Enable copy button
         self.copy_button.setEnabled(True)
 
+        # Check if message contains a document
+        if can_generate_document(self._current_assistant_message):
+            self.document_button.setEnabled(True)
+            self.document_button.show()
+            logger.debug("Document detected in assistant message")
+        else:
+            self.document_button.setEnabled(False)
+            self.document_button.hide()
+
         self._current_assistant_message = ""
         self._current_reasoning = ""
         logger.debug("Ended assistant message")
@@ -185,6 +206,8 @@ class ChatDisplay(QWidget):
         self._current_assistant_message = ""
         self.text_browser.clear()
         self.copy_button.setEnabled(False)
+        self.document_button.setEnabled(False)
+        self.document_button.hide()
         self.copy_feedback.hide()
         logger.info("Chat display cleared")
 
@@ -229,6 +252,21 @@ class ChatDisplay(QWidget):
                 self.copy_feedback.setStyleSheet("color: #f48771; font-size: 12px;")
                 self.copy_feedback.show()
                 logger.error("Failed to copy last response")
+
+    def _on_document_clicked(self) -> None:
+        """Handle document button click."""
+        last_message = self.get_last_assistant_message()
+        if last_message:
+            # Extract document from message
+            document = extract_document_content(last_message)
+            if document:
+                # Open document dialog
+                from ai_chat.ui.document_dialog import DocumentDialog
+                dialog = DocumentDialog(document, theme=self.theme, parent=self)
+                dialog.exec()
+                logger.info(f"Opened document dialog for {document.filename}")
+            else:
+                logger.warning("No document found in last message")
 
     @property
     def message_count(self) -> int:
