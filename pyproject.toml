@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-chat"
+version = "1.0.0"
+description = "Chat interface for local and AWS Bedrock AI models"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PyQt6>=6.6.0",
+    "httpx>=0.27.0",
+    "boto3>=1.34.0",
+    "pydantic>=2.5.0",
+    "markdown>=3.5.0",
+    "pygments>=2.17.0",
+    "tomli>=2.0.0;python_version<'3.11'",
+    "qasync>=0.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-qt>=4.2.0",
+    "pytest-cov>=4.1.0",
+]
+
+[project.scripts]
+ai-chat = "ai_chat.main:main"
+
+[project.entry-points."myapp.sources"]
+ai_chat = "ai_chat.source:AIChatSource"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+ai_chat = ["resources/*", "resources/icons/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+addopts = "-v --strict-markers"
+markers = [
+    "asyncio: mark test as async",
+]

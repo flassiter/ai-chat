@@ -1,0 +1,100 @@
+# AI Chat Application Configuration
+
+[app]
+title = "AI Chat"
+theme = "dark"                    # "dark" | "light" | "system"
+default_model = "ollama-mistral"  # Must match a model key below
+
+[documents]
+default_directory = "~/Documents/AI-Exports"
+filename_template = "{title}_{timestamp}.md"
+include_metadata = true           # Include provenance in exported docs
+
+[logging]
+level = "INFO"                     # DEBUG | INFO | WARNING | ERROR | CRITICAL
+file = ""                          # Optional: path to log file (empty = console only)
+format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+# =============================================================================
+# AWS Bedrock Models
+# =============================================================================
+[models.bedrock-claude]
+provider = "bedrock"
+name = "Claude 3.5 Sonnet"
+model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+region = "us-east-1"              # Optional, defaults to AWS CLI config
+supports_images = true
+supports_documents = true
+supports_reasoning = false
+max_tokens = 8192
+temperature = 0.7
+
+[models.bedrock-claude-thinking]
+provider = "bedrock"
+name = "Claude 3.5 Sonnet (Extended Thinking)"
+model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+region = "us-east-1"
+supports_images = true
+supports_documents = true
+supports_reasoning = true
+reasoning_budget_tokens = 10000
+max_tokens = 8192
+
+[models.bedrock-nova]
+provider = "bedrock"
+name = "Amazon Nova Pro"
+model_id = "amazon.nova-pro-v1:0"
+region = "us-east-1"
+supports_images = true
+supports_documents = false
+supports_reasoning = false
+max_tokens = 4096
+
+# =============================================================================
+# Local OpenAI-Compatible Models
+# =============================================================================
+[models.ollama-mistral]
+provider = "openai_compatible"
+name = "Mistral (Ollama)"
+base_url = "http://localhost:11434/v1"  # Ollama OpenAI-compatible endpoint
+model = "mistral"
+api_key = "ollama"
+supports_images = false
+supports_documents = false
+supports_reasoning = false
+max_tokens = 4096
+temperature = 0.7
+
+[models.local-llama]
+provider = "openai_compatible"
+name = "Llama 3.2 (Local)"
+base_url = "http://localhost:1234/v1"   # LM Studio default
+model = "llama-3.2-8b"
+api_key = "lm-studio"                    # Often ignored by local servers
+supports_images = false
+supports_documents = false
+supports_reasoning = false
+max_tokens = 4096
+temperature = 0.7
+
+[models.local-qwen-coder]
+provider = "openai_compatible"
+name = "Qwen 2.5 Coder (llama.cpp)"
+base_url = "http://localhost:8080/v1"   # llama.cpp server default
+model = "qwen2.5-coder-32b"
+api_key = "not-needed"
+supports_images = false
+supports_documents = false
+supports_reasoning = true
+max_tokens = 8192
+
+[models.local-vision]
+provider = "openai_compatible"
+name = "LLaVA Vision (Local)"
+base_url = "http://localhost:1234/v1"
+model = "llava-v1.6"
+api_key = "lm-studio"
+supports_images = true
+supports_documents = false
+supports_reasoning = false
+max_tokens = 4096
