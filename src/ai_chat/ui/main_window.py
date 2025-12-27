@@ -60,6 +60,21 @@ class MainWindow(QMainWindow):
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
 
+        # Edit menu
+        edit_menu = menubar.addMenu("&Edit")
+
+        # Copy last response action
+        copy_action = QAction("Copy &Last Response", self)
+        copy_action.setShortcut(QKeySequence("Ctrl+Shift+C"))
+        copy_action.triggered.connect(self._on_copy_last_response)
+        edit_menu.addAction(copy_action)
+
+        # Focus input action
+        focus_action = QAction("&Focus Input", self)
+        focus_action.setShortcut(QKeySequence("Ctrl+L"))
+        focus_action.triggered.connect(self._on_focus_input)
+        edit_menu.addAction(focus_action)
+
         # Help menu
         help_menu = menubar.addMenu("&Help")
 
@@ -82,6 +97,17 @@ class MainWindow(QMainWindow):
             self.chat_widget.clear_conversation()
             logger.info("User cleared conversation via menu")
 
+    def _on_copy_last_response(self) -> None:
+        """Handle copy last response action."""
+        # Trigger the copy button in chat display
+        self.chat_widget.chat_display._on_copy_last()
+        logger.info("User triggered copy last response via shortcut")
+
+    def _on_focus_input(self) -> None:
+        """Handle focus input action."""
+        self.chat_widget.input_widget.text_edit.setFocus()
+        logger.debug("Input widget focused via shortcut")
+
     def _on_about(self) -> None:
         """Handle about action."""
         about_text = f"""
@@ -92,11 +118,15 @@ class MainWindow(QMainWindow):
         <ul>
             <li>Multi-provider support (Ollama, LM Studio, AWS Bedrock)</li>
             <li>Streaming responses</li>
+            <li>Markdown rendering with syntax highlighting</li>
+            <li>Copy functionality</li>
             <li>Configurable models via TOML</li>
         </ul>
         <p><b>Keyboard Shortcuts:</b></p>
         <ul>
             <li>Ctrl+Enter: Send message</li>
+            <li>Ctrl+Shift+C: Copy last response</li>
+            <li>Ctrl+L: Focus input</li>
             <li>Ctrl+Shift+K: Clear conversation</li>
             <li>Ctrl+Q: Quit</li>
         </ul>

@@ -44,12 +44,15 @@ class ChatWidget(QWidget):
         """Create UI components."""
         layout = QVBoxLayout(self)
 
+        # Get theme from config
+        theme = self.config.app.theme
+
         # Model selector at top
         self.model_selector = ModelSelector(self.config)
         layout.addWidget(self.model_selector)
 
-        # Chat display (main area)
-        self.chat_display = ChatDisplay()
+        # Chat display (main area) with theme
+        self.chat_display = ChatDisplay(theme=theme)
         layout.addWidget(self.chat_display, stretch=1)
 
         # Input widget at bottom
