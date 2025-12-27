@@ -1,12 +1,15 @@
 """Main application entry point."""
 
 import argparse
+import asyncio
 import logging
 import sys
 
-from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow
+import qasync
+from PyQt6.QtWidgets import QApplication
 
 from ai_chat.config import load_config
+from ai_chat.ui import MainWindow
 from ai_chat.utils import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -70,22 +73,19 @@ def main() -> int:
         app = QApplication(sys.argv)
         app.setApplicationName(config.app.title)
 
-        # Create main window (placeholder for now)
-        window = QMainWindow()
-        window.setWindowTitle(config.app.title)
-        window.setMinimumSize(800, 600)
+        # Create event loop with qasync for async support
+        loop = qasync.QEventLoop(app)
+        asyncio.set_event_loop(loop)
 
-        # Placeholder content
-        label = QLabel("AI Chat - Phase 1 Foundation\n\nConfiguration loaded successfully!")
-        label.setStyleSheet("QLabel { font-size: 16px; padding: 20px; }")
-        window.setCentralWidget(label)
-
+        # Create main window
+        window = MainWindow(config)
         window.show()
 
         logger.info("Application window created")
 
-        # Run event loop
-        return app.exec()
+        # Run event loop with async support
+        with loop:
+            return loop.run_forever()
 
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
