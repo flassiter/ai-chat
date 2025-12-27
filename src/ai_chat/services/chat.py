@@ -3,9 +3,8 @@
 import logging
 from typing import AsyncIterator, Optional
 
-from ai_chat.config.models import Config, ModelConfig, ProviderType
-from ai_chat.providers import BaseProvider, Message, StreamChunk
-from ai_chat.providers.openai_compatible import OpenAICompatibleProvider
+from ai_chat.config.models import Config, ModelConfig
+from ai_chat.providers import BaseProvider, Message, StreamChunk, create_provider
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +86,7 @@ class ChatService:
 
     def _create_provider(self, model_config: ModelConfig) -> BaseProvider:
         """
-        Create provider instance for model config.
+        Create provider instance for model config using factory.
 
         Args:
             model_config: Model configuration
@@ -98,17 +97,7 @@ class ChatService:
         Raises:
             ValueError: If provider type not supported
         """
-        logger.debug(f"Creating provider for {model_config.name}")
-
-        if model_config.provider == ProviderType.OPENAI_COMPATIBLE:
-            return OpenAICompatibleProvider(model_config)
-        elif model_config.provider == ProviderType.BEDROCK:
-            # Will be implemented in Phase 4
-            raise ValueError(
-                "Bedrock provider not yet implemented (coming in Phase 4)"
-            )
-        else:
-            raise ValueError(f"Unsupported provider type: {model_config.provider}")
+        return create_provider(model_config)
 
     async def stream_response(
         self, user_message: str
