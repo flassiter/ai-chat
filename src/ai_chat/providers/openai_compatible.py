@@ -16,6 +16,7 @@ from ai_chat.providers.base import (
     RateLimitError,
     StreamChunk,
 )
+from ai_chat.utils.reasoning import extract_reasoning_tags, has_reasoning_tags
 
 logger = logging.getLogger(__name__)
 

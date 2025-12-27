@@ -211,14 +211,40 @@ class BedrockProvider(BaseProvider):
             logger.warning("No stream in Bedrock response")
             return
 
+        # Track content block types to distinguish reasoning from regular content
+        content_block_types = {}
+
         for event in stream:
+            # Content block start - identifies block type
+            if "contentBlockStart" in event:
+                start = event["contentBlockStart"]
+                content_block_index = start.get("contentBlockIndex", 0)
+
+                # Check if this is a reasoning block
+                if "start" in start:
+                    start_data = start["start"]
+                    # Bedrock uses "thinkingContent" or similar for reasoning
+                    if "thinkingContent" in start_data or "reasoning" in str(start_data).lower():
+                        content_block_types[content_block_index] = "reasoning"
+                        logger.debug(f"Detected reasoning block at index {content_block_index}")
+                    else:
+                        content_block_types[content_block_index] = "text"
+
             # Content block delta - the main content chunks
-            if "contentBlockDelta" in event:
+            elif "contentBlockDelta" in event:
                 delta = event["contentBlockDelta"]["delta"]
+                content_block_index = event["contentBlockDelta"].get("contentBlockIndex", 0)
+
+                # Determine if this is reasoning or regular content
+                is_reasoning = content_block_types.get(content_block_index) == "reasoning"
 
                 if "text" in delta:
                     text = delta["text"]
-                    yield StreamChunk(content=text)
+                    if is_reasoning:
+                        logger.debug(f"Reasoning chunk: {text[:50]}...")
+                        yield StreamChunk(reasoning=text, is_reasoning=True)
+                    else:
+                        yield StreamChunk(content=text)
 
             # Metadata - could contain stop reason
             elif "metadata" in event:

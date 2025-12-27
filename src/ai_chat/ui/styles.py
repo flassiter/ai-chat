@@ -166,6 +166,94 @@ def get_message_html(content: str, role: Literal["user", "assistant"], theme: Th
     """
 
 
+def get_message_html_with_reasoning(
+    content: str,
+    role: Literal["user", "assistant"],
+    theme: ThemeType,
+    reasoning: str = ""
+) -> str:
+    """
+    Generate HTML for a chat message with optional reasoning section.
+
+    Args:
+        content: Message content (already rendered HTML from markdown)
+        role: Message role ('user' or 'assistant')
+        theme: Theme type
+        reasoning: Optional reasoning content
+
+    Returns:
+        Styled HTML string with collapsible reasoning if present
+    """
+    if theme == "dark":
+        if role == "user":
+            bg_color = "#0e639c"
+            text_color = "#ffffff"
+            label = "You"
+            reasoning_bg = "#1a4d6d"
+            reasoning_text = "#b0c4de"
+        else:
+            bg_color = "#2d2d2d"
+            text_color = "#d4d4d4"
+            label = "AI"
+            reasoning_bg = "#1e1e1e"
+            reasoning_text = "#9a9a9a"
+    else:  # light theme
+        if role == "user":
+            bg_color = "#0078d4"
+            text_color = "#ffffff"
+            label = "You"
+            reasoning_bg = "#d0e7f9"
+            reasoning_text = "#004578"
+        else:
+            bg_color = "#f5f5f5"
+            text_color = "#1e1e1e"
+            label = "AI"
+            reasoning_bg = "#e8e8e8"
+            reasoning_text = "#5a5a5a"
+
+    # Calculate token count for reasoning
+    token_count = len(reasoning) // 4 if reasoning else 0
+
+    # Build HTML
+    html = f"""
+        <div style="margin: 12px 0; padding: 12px; background-color: {bg_color};
+                    border-radius: 8px; color: {text_color};">
+            <div style="font-weight: bold; margin-bottom: 8px; font-size: 13px; opacity: 0.8;">
+                {label}
+            </div>
+    """
+
+    # Add reasoning section if present
+    if reasoning:
+        # Create a unique ID for this reasoning section
+        import random
+        section_id = f"reasoning_{random.randint(1000, 9999)}"
+
+        html += f"""
+            <details style="margin-bottom: 12px; padding: 8px; background-color: {reasoning_bg};
+                           border-radius: 4px; border-left: 3px solid {reasoning_text};">
+                <summary style="cursor: pointer; font-size: 12px; color: {reasoning_text};
+                               font-weight: bold; user-select: none;">
+                    🧠 Show reasoning (~{token_count} tokens)
+                </summary>
+                <div style="margin-top: 8px; padding: 8px; font-size: 13px; color: {reasoning_text};
+                           line-height: 1.5; white-space: pre-wrap; font-family: 'Segoe UI', Arial, sans-serif;">
+                    {reasoning}
+                </div>
+            </details>
+        """
+
+    # Add main content
+    html += f"""
+            <div style="line-height: 1.6;">
+                {content}
+            </div>
+        </div>
+    """
+
+    return html
+
+
 def get_error_html(message: str, theme: ThemeType = "dark") -> str:
     """
     Generate HTML for an error message.

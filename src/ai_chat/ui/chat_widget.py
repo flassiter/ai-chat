@@ -115,6 +115,9 @@ class ChatWidget(QWidget):
                 if chunk.content:
                     self.chat_display.append_assistant_chunk(chunk.content)
 
+                if chunk.reasoning:
+                    self.chat_display.append_reasoning_chunk(chunk.reasoning)
+
                 if chunk.done:
                     break
 

@@ -45,8 +45,9 @@ class ChatDisplay(QWidget):
         super().__init__(parent)
 
         self.theme = theme
-        self._messages: list[tuple[str, str, str]] = []  # (role, content_md, content_html)
+        self._messages: list[tuple[str, str, str, str]] = []  # (role, content_md, content_html, reasoning_md)
         self._current_assistant_message = ""
+        self._current_reasoning = ""
 
         # Create text browser for HTML rendering
         self.text_browser = QTextBrowser()
@@ -96,7 +97,7 @@ class ChatDisplay(QWidget):
         html_content = content.replace("\n", "<br>").replace(" ", "&nbsp;")
         message_html = get_message_html(html_content, "user", self.theme)
 
-        self._messages.append(("user", content, message_html))
+        self._messages.append(("user", content, message_html, ""))
         self._update_display()
 
         logger.debug(f"Appended user message: {content[:50]}...")
@@ -104,6 +105,7 @@ class ChatDisplay(QWidget):
     def append_assistant_message_start(self) -> None:
         """Start a new assistant message."""
         self._current_assistant_message = ""
+        self._current_reasoning = ""
         logger.debug("Started assistant message")
 
     def append_assistant_chunk(self, content: str) -> None:
@@ -114,37 +116,52 @@ class ChatDisplay(QWidget):
             content: Content chunk to append (markdown)
         """
         self._current_assistant_message += content
+        self._render_and_update_current_message()
 
-        # Render markdown
+    def append_reasoning_chunk(self, reasoning: str) -> None:
+        """
+        Append reasoning content to the current assistant message.
+
+        Args:
+            reasoning: Reasoning chunk to append
+        """
+        self._current_reasoning += reasoning
+        logger.debug(f"Appended reasoning chunk: {reasoning[:50]}...")
+        self._render_and_update_current_message()
+
+    def _render_and_update_current_message(self) -> None:
+        """Render current assistant message and update display."""
+        # Render markdown for main content
         html_content = render_markdown(self._current_assistant_message, "monokai" if self.theme == "dark" else "default")
-        message_html = get_message_html(html_content, "assistant", self.theme)
+
+        # Create message HTML with reasoning if present
+        from ai_chat.ui.styles import get_message_html_with_reasoning
+        message_html = get_message_html_with_reasoning(
+            html_content,
+            "assistant",
+            self.theme,
+            self._current_reasoning
+        )
 
         # Update display (replace last message if it exists and is assistant)
         if self._messages and self._messages[-1][0] == "assistant":
-            self._messages[-1] = ("assistant", self._current_assistant_message, message_html)
+            self._messages[-1] = ("assistant", self._current_assistant_message, message_html, self._current_reasoning)
         else:
-            self._messages.append(("assistant", self._current_assistant_message, message_html))
+            self._messages.append(("assistant", self._current_assistant_message, message_html, self._current_reasoning))
 
         self._update_display()
 
     def append_assistant_message_end(self) -> None:
         """End the current assistant message."""
         # Final render
-        if self._current_assistant_message:
-            html_content = render_markdown(self._current_assistant_message, "monokai" if self.theme == "dark" else "default")
-            message_html = get_message_html(html_content, "assistant", self.theme)
-
-            if self._messages and self._messages[-1][0] == "assistant":
-                self._messages[-1] = ("assistant", self._current_assistant_message, message_html)
-            else:
-                self._messages.append(("assistant", self._current_assistant_message, message_html))
-
-            self._update_display()
+        if self._current_assistant_message or self._current_reasoning:
+            self._render_and_update_current_message()
 
         # Enable copy button
         self.copy_button.setEnabled(True)
 
         self._current_assistant_message = ""
+        self._current_reasoning = ""
         logger.debug("Ended assistant message")
 
     def append_error(self, error_message: str) -> None:
@@ -178,7 +195,7 @@ class ChatDisplay(QWidget):
         Returns:
             Last assistant message markdown, or None if no messages
         """
-        for role, content_md, _ in reversed(self._messages):
+        for role, content_md, _, _ in reversed(self._messages):
             if role == "assistant":
                 return content_md
         return None
