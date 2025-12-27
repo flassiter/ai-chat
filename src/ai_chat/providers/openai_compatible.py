@@ -1,5 +1,6 @@
 """OpenAI-compatible provider for local models (Ollama, LM Studio, llama.cpp)."""
 
+import base64
 import json
 import logging
 from typing import AsyncIterator
@@ -207,15 +208,78 @@ class OpenAICompatibleProvider(BaseProvider):
         openai_messages = []
 
         for msg in messages:
-            # Basic text message
-            message_dict = {"role": msg.role, "content": msg.content}
+            # If there are images or documents, use multimodal format
+            if msg.images or msg.documents:
+                content = []
 
-            # TODO: Handle images and documents in Phase 6
-            # For now, just include text content
+                # Add text content
+                if msg.content:
+                    content.append({"type": "text", "text": msg.content})
+
+                # Add images as base64 data URLs
+                if msg.images:
+                    for image_data in msg.images:
+                        image_format = self._detect_image_format(image_data)
+                        mime_type = f"image/{image_format}"
+                        b64_image = base64.b64encode(image_data).decode('utf-8')
+                        data_url = f"data:{mime_type};base64,{b64_image}"
+
+                        content.append({
+                            "type": "image_url",
+                            "image_url": {"url": data_url}
+                        })
+                        logger.debug(f"Added image (format: {image_format}, size: {len(image_data)} bytes)")
+
+                # Add documents as text
+                if msg.documents:
+                    for filename, doc_data in msg.documents:
+                        try:
+                            if filename.endswith(('.txt', '.md')):
+                                doc_text = doc_data.decode('utf-8')
+                                content.append({
+                                    "type": "text",
+                                    "text": f"\n\n[Document: {filename}]\n{doc_text}\n"
+                                })
+                                logger.debug(f"Added text document: {filename} ({len(doc_text)} chars)")
+                            else:
+                                content.append({
+                                    "type": "text",
+                                    "text": f"\n\n[Document: {filename}]\n"
+                                })
+                        except Exception as e:
+                            logger.warning(f"Failed to process document {filename}: {e}")
+
+                message_dict = {"role": msg.role, "content": content}
+            else:
+                # Simple text-only message
+                message_dict = {"role": msg.role, "content": msg.content}
 
             openai_messages.append(message_dict)
 
         return openai_messages
+
+    def _detect_image_format(self, image_data: bytes) -> str:
+        """
+        Detect image format from magic bytes.
+
+        Args:
+            image_data: Image bytes
+
+        Returns:
+            Format string ('png', 'jpeg', 'gif', 'webp')
+        """
+        if image_data.startswith(b'\x89PNG\r\n\x1a\n'):
+            return "png"
+        elif image_data.startswith(b'\xff\xd8\xff'):
+            return "jpeg"
+        elif image_data.startswith(b'GIF87a') or image_data.startswith(b'GIF89a'):
+            return "gif"
+        elif image_data.startswith(b'RIFF') and image_data[8:12] == b'WEBP':
+            return "webp"
+        else:
+            # Default to PNG if unknown
+            logger.warning("Unknown image format, defaulting to PNG")
+            return "png"
 
     def supports_feature(self, feature: str) -> bool:
         """

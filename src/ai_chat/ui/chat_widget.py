@@ -81,14 +81,23 @@ class ChatWidget(QWidget):
         logger.info(f"Model changed to: {model_key}")
         self.chat_service.set_model(model_key)
 
-    def _on_message_submitted(self, message: str) -> None:
+    def _on_message_submitted(self, message: str, images: list, documents: list) -> None:
         """
         Handle message submission.
 
         Args:
             message: User message
+            images: List of image data (bytes)
+            documents: List of (filename, data) tuples
         """
-        logger.info(f"Message submitted: {message[:50]}...")
+        attachment_info = []
+        if images:
+            attachment_info.append(f"{len(images)} image(s)")
+        if documents:
+            attachment_info.append(f"{len(documents)} document(s)")
+        attachment_str = f" with {', '.join(attachment_info)}" if attachment_info else ""
+
+        logger.info(f"Message submitted{attachment_str}: {message[:50]}...")
 
         # Display user message immediately
         self.chat_display.append_user_message(message)
@@ -97,21 +106,23 @@ class ChatWidget(QWidget):
         self.input_widget.set_enabled(False)
 
         # Start streaming response (async)
-        asyncio.create_task(self._stream_response(message))
+        asyncio.create_task(self._stream_response(message, images, documents))
 
-    async def _stream_response(self, user_message: str) -> None:
+    async def _stream_response(self, user_message: str, images: list, documents: list) -> None:
         """
         Stream AI response asynchronously.
 
         Args:
             user_message: User's message
+            images: List of image data (bytes)
+            documents: List of (filename, data) tuples
         """
         try:
             # Start assistant message
             self.chat_display.append_assistant_message_start()
 
-            # Stream response chunks
-            async for chunk in self.chat_service.stream_response(user_message):
+            # Stream response chunks with attachments
+            async for chunk in self.chat_service.stream_response(user_message, images, documents):
                 if chunk.content:
                     self.chat_display.append_assistant_chunk(chunk.content)
 
@@ -125,6 +136,11 @@ class ChatWidget(QWidget):
             self.chat_display.append_assistant_message_end()
 
             logger.info("Response streaming completed")
+
+        except ValueError as e:
+            # Capability error (model doesn't support attachments)
+            logger.error(f"Capability error: {e}")
+            self.chat_display.append_error(str(e))
 
         except ProviderError as e:
             logger.error(f"Provider error: {e}")

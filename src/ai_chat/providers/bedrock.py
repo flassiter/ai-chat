@@ -1,5 +1,6 @@
 """AWS Bedrock provider implementation."""
 
+import base64
 import logging
 from typing import AsyncIterator, Optional
 
@@ -171,20 +172,33 @@ class BedrockProvider(BaseProvider):
             # Add images if present
             if msg.images:
                 for image_data in msg.images:
+                    image_format = self._detect_image_format(image_data)
                     content.append(
                         {
                             "image": {
-                                "format": "png",  # Could be detected from data
+                                "format": image_format,
                                 "source": {"bytes": image_data},
                             }
                         }
                     )
+                    logger.debug(f"Added image attachment (format: {image_format}, size: {len(image_data)} bytes)")
 
             # Add documents if present
             if msg.documents:
                 for filename, doc_data in msg.documents:
-                    # For now, add as text (could be enhanced with document extraction)
-                    content.append({"text": f"[Document: {filename}]"})
+                    # Try to extract text from document
+                    try:
+                        if filename.endswith(('.txt', '.md')):
+                            doc_text = doc_data.decode('utf-8')
+                            content.append({"text": f"\n\n[Document: {filename}]\n{doc_text}\n"})
+                            logger.debug(f"Added text document: {filename} ({len(doc_text)} chars)")
+                        else:
+                            # For other formats, add placeholder
+                            content.append({"text": f"\n\n[Document: {filename}]\n"})
+                            logger.debug(f"Added document placeholder: {filename}")
+                    except Exception as e:
+                        logger.warning(f"Failed to process document {filename}: {e}")
+                        content.append({"text": f"\n\n[Document: {filename}]\n"})
 
             bedrock_messages.append(
                 {
@@ -195,6 +209,29 @@ class BedrockProvider(BaseProvider):
 
         logger.debug(f"Converted {len(messages)} messages to Bedrock format")
         return bedrock_messages
+
+    def _detect_image_format(self, image_data: bytes) -> str:
+        """
+        Detect image format from magic bytes.
+
+        Args:
+            image_data: Image bytes
+
+        Returns:
+            Format string ('png', 'jpeg', 'gif', 'webp')
+        """
+        if image_data.startswith(b'\x89PNG\r\n\x1a\n'):
+            return "png"
+        elif image_data.startswith(b'\xff\xd8\xff'):
+            return "jpeg"
+        elif image_data.startswith(b'GIF87a') or image_data.startswith(b'GIF89a'):
+            return "gif"
+        elif image_data.startswith(b'RIFF') and image_data[8:12] == b'WEBP':
+            return "webp"
+        else:
+            # Default to PNG if unknown
+            logger.warning("Unknown image format, defaulting to PNG")
+            return "png"
 
     async def _process_stream(self, response) -> AsyncIterator[StreamChunk]:
         """

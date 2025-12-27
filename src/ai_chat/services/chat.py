@@ -27,18 +27,38 @@ class ChatService:
             f"ChatService initialized with default model: {self.current_model_key}"
         )
 
-    def add_message(self, role: str, content: str) -> None:
+    def add_message(
+        self,
+        role: str,
+        content: str,
+        images: Optional[list[bytes]] = None,
+        documents: Optional[list[tuple[str, bytes]]] = None,
+    ) -> None:
         """
         Add a message to the conversation history.
 
         Args:
             role: "user" or "assistant"
             content: Message content
+            images: Optional list of image data (bytes)
+            documents: Optional list of (filename, data) tuples
         """
-        message = Message(role=role, content=content)
+        message = Message(
+            role=role,
+            content=content,
+            images=images or [],
+            documents=documents or [],
+        )
         self.messages.append(message)
 
-        logger.info(f"Added {role} message to history (total: {len(self.messages)})")
+        attachment_info = []
+        if images:
+            attachment_info.append(f"{len(images)} image(s)")
+        if documents:
+            attachment_info.append(f"{len(documents)} document(s)")
+        attachment_str = f" with {', '.join(attachment_info)}" if attachment_info else ""
+
+        logger.info(f"Added {role} message to history{attachment_str} (total: {len(self.messages)})")
         logger.debug(f"Message content: {content[:100]}...")
 
     def clear_history(self) -> None:
@@ -100,30 +120,51 @@ class ChatService:
         return create_provider(model_config)
 
     async def stream_response(
-        self, user_message: str
+        self,
+        user_message: str,
+        images: Optional[list[bytes]] = None,
+        documents: Optional[list[tuple[str, bytes]]] = None,
     ) -> AsyncIterator[StreamChunk]:
         """
         Send user message and stream AI response.
 
         Args:
             user_message: User's message
+            images: Optional list of image data (bytes)
+            documents: Optional list of (filename, data) tuples
 
         Yields:
             StreamChunk objects with response content
-        """
-        # Add user message to history
-        self.add_message("user", user_message)
 
+        Raises:
+            ValueError: If model doesn't support attachments
+        """
         # Get current model config
         model_config = self.get_current_model_config()
+        provider = self._create_provider(model_config)
+
+        # Validate capability gating
+        if images and not provider.supports_feature("images"):
+            logger.warning(f"Model {model_config.name} does not support images")
+            raise ValueError(
+                f"Model {model_config.name} does not support images. "
+                "Please select a vision-capable model."
+            )
+
+        if documents and not provider.supports_feature("documents"):
+            logger.warning(f"Model {model_config.name} does not support documents")
+            raise ValueError(
+                f"Model {model_config.name} does not support documents. "
+                "Please select a model that supports document inputs."
+            )
+
+        # Add user message to history with attachments
+        self.add_message("user", user_message, images, documents)
 
         logger.info(
             f"Streaming response from {model_config.name} "
             f"(conversation length: {len(self.messages)})"
         )
-
-        # Create provider
-        provider = self._create_provider(model_config)
 
         # Stream response
         assistant_message = ""
