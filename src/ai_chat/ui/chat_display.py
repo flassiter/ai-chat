@@ -38,17 +38,27 @@ class ChatDisplay(QWidget):
     # Signal emitted when copy button is clicked
     copy_requested = pyqtSignal(str)
 
-    def __init__(self, theme: ThemeType = "dark", parent: Optional[QWidget] = None):
+    def __init__(
+        self,
+        theme: ThemeType = "dark",
+        parent: Optional[QWidget] = None,
+        source_mode: bool = False,
+        source_context: Optional[object] = None,
+    ):
         """
         Initialize chat display.
 
         Args:
             theme: UI theme ('dark' or 'light')
             parent: Parent widget
+            source_mode: Whether running in source plugin mode
+            source_context: Source context (if in source mode)
         """
         super().__init__(parent)
 
         self.theme = theme
+        self.source_mode = source_mode
+        self.source_context = source_context
         self._messages: list[tuple[str, str, str, str]] = []  # (role, content_md, content_html, reasoning_md)
         self._current_assistant_message = ""
         self._current_reasoning = ""
@@ -262,7 +272,13 @@ class ChatDisplay(QWidget):
             if document:
                 # Open document dialog
                 from ai_chat.ui.document_dialog import DocumentDialog
-                dialog = DocumentDialog(document, theme=self.theme, parent=self)
+                dialog = DocumentDialog(
+                    document,
+                    theme=self.theme,
+                    parent=self,
+                    source_mode=self.source_mode,
+                    source_context=self.source_context,
+                )
                 dialog.exec()
                 logger.info(f"Opened document dialog for {document.filename}")
             else:

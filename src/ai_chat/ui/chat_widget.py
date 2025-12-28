@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from typing import Optional
 
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
@@ -18,16 +19,26 @@ logger = logging.getLogger(__name__)
 class ChatWidget(QWidget):
     """Main chat widget with model selector, display, and input."""
 
-    def __init__(self, config: Config, parent: QWidget | None = None):
+    def __init__(
+        self,
+        config: Config,
+        parent: QWidget | None = None,
+        source_mode: bool = False,
+        source_context: Optional[object] = None,
+    ):
         """
         Initialize chat widget.
 
         Args:
             config: Application configuration
             parent: Parent widget
+            source_mode: Whether running as source plugin
+            source_context: Source context (if in source mode)
         """
         super().__init__(parent)
         self.config = config
+        self.source_mode = source_mode
+        self.source_context = source_context
 
         # Create chat service
         self.chat_service = ChatService(config)
@@ -38,7 +49,8 @@ class ChatWidget(QWidget):
         # Connect signals
         self._connect_signals()
 
-        logger.info("ChatWidget initialized")
+        mode_str = "source mode" if source_mode else "standalone mode"
+        logger.info(f"ChatWidget initialized in {mode_str}")
 
     def _create_ui(self) -> None:
         """Create UI components."""
@@ -51,8 +63,12 @@ class ChatWidget(QWidget):
         self.model_selector = ModelSelector(self.config)
         layout.addWidget(self.model_selector)
 
-        # Chat display (main area) with theme
-        self.chat_display = ChatDisplay(theme=theme)
+        # Chat display (main area) with theme and source mode
+        self.chat_display = ChatDisplay(
+            theme=theme,
+            source_mode=self.source_mode,
+            source_context=self.source_context,
+        )
         layout.addWidget(self.chat_display, stretch=1)
 
         # Input widget at bottom

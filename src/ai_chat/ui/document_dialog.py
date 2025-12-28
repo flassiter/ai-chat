@@ -34,6 +34,8 @@ class DocumentDialog(QDialog):
         document: GeneratedDocument,
         theme: ThemeType = "dark",
         parent: Optional[QWidget] = None,
+        source_mode: bool = False,
+        source_context: Optional[object] = None,
     ):
         """
         Initialize document dialog.
@@ -42,10 +44,14 @@ class DocumentDialog(QDialog):
             document: Generated document to preview
             theme: UI theme
             parent: Parent widget
+            source_mode: Whether running in source plugin mode
+            source_context: Source context (if in source mode)
         """
         super().__init__(parent)
         self.document = document
         self.theme = theme
+        self.source_mode = source_mode
+        self.source_context = source_context
 
         self.setWindowTitle("Generated Document")
         self.setMinimumWidth(800)
@@ -53,7 +59,8 @@ class DocumentDialog(QDialog):
 
         self._create_ui()
 
-        logger.info(f"DocumentDialog opened for {document.filename}")
+        mode_str = " (Source Mode)" if source_mode else ""
+        logger.info(f"DocumentDialog opened for {document.filename}{mode_str}")
 
     def _create_ui(self) -> None:
         """Create UI components."""
@@ -192,6 +199,41 @@ class DocumentDialog(QDialog):
             """)
         button_layout.addWidget(self.download_button)
 
+        # Capture button (only in source mode)
+        if self.source_mode:
+            self.capture_button = QPushButton("📤 Capture")
+            self.capture_button.setMinimumWidth(150)
+            self.capture_button.clicked.connect(self._on_capture_clicked)
+            if self.theme == "dark":
+                self.capture_button.setStyleSheet("""
+                    QPushButton {
+                        background-color: #0e639c;
+                        color: #ffffff;
+                        border: none;
+                        border-radius: 4px;
+                        padding: 8px 16px;
+                        font-weight: bold;
+                    }
+                    QPushButton:hover {
+                        background-color: #1177bb;
+                    }
+                """)
+            else:
+                self.capture_button.setStyleSheet("""
+                    QPushButton {
+                        background-color: #0078d4;
+                        color: #ffffff;
+                        border: none;
+                        border-radius: 4px;
+                        padding: 8px 16px;
+                        font-weight: bold;
+                    }
+                    QPushButton:hover {
+                        background-color: #106ebe;
+                    }
+                """)
+            button_layout.addWidget(self.capture_button)
+
         # Close button
         self.close_button = QPushButton("Close")
         self.close_button.setMinimumWidth(100)
@@ -279,3 +321,45 @@ class DocumentDialog(QDialog):
                     "Save Failed",
                     f"Failed to save document:\n{e}"
                 )
+
+    def _on_capture_clicked(self) -> None:
+        """Handle capture button click."""
+        if not self.source_context:
+            logger.warning("No source context available")
+            return
+
+        # Import here to avoid circular dependency
+        from ai_chat.contracts import CapturePayload, Provenance, SourceType, FormatHint
+
+        # Create provenance
+        provenance = Provenance(
+            source_id="ai_chat",
+            source_name="AI Chat",
+            extra={"document_filename": self.document.filename}
+        )
+
+        # Create capture payload
+        payload = CapturePayload(
+            content=self.document.content_with_metadata,
+            source_type=SourceType.DOCUMENT,
+            format_hint=FormatHint.MARKDOWN,
+            title=self.document.title or "Generated Document",
+            provenance=provenance,
+        )
+
+        # Request capture via context callback
+        try:
+            self.source_context.request_capture(payload)
+            logger.info(f"Captured document: {self.document.filename}")
+            QMessageBox.information(
+                self,
+                "Captured",
+                "Document captured successfully!"
+            )
+        except Exception as e:
+            logger.error(f"Failed to capture document: {e}")
+            QMessageBox.critical(
+                self,
+                "Capture Failed",
+                f"Failed to capture document:\n{e}"
+            )
