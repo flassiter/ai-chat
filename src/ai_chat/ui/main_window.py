@@ -203,7 +203,7 @@ class MainWindow(QMainWindow):
 
     def _on_focus_input(self) -> None:
         """Handle focus input action."""
-        self.chat_widget.input_widget.text_edit.setFocus()
+        self.chat_widget.input_widget.text_input.setFocus()
         logger.debug("Input widget focused via shortcut")
 
     def _on_about(self) -> None:

@@ -43,9 +43,6 @@ class KnowledgeService:
         # In-memory cache for active session
         self._memory_cache: dict[str, CachedKnowledge] = {}
 
-        # HTTP client (created lazily)
-        self._client: Optional[httpx.AsyncClient] = None
-
         logger.info(f"KnowledgeService initialized: {self.cache_dir}")
 
     def _get_cache_key(self, url: str) -> str:
@@ -57,21 +54,6 @@ class KnowledgeService:
     def _get_cache_path(self, cache_key: str) -> Path:
         """Get path to cached content file."""
         return self.cache_dir / f"{cache_key}.json"
-
-    async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create HTTP client."""
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
-                timeout=30.0,
-                headers={"User-Agent": "AI-Chat-Knowledge-Fetcher/1.0"},
-                follow_redirects=True,
-            )
-        return self._client
-
-    async def close(self) -> None:
-        """Close HTTP client."""
-        if self._client and not self._client.is_closed:
-            await self._client.aclose()
 
     def check_relevance(
         self,
@@ -204,18 +186,22 @@ class KnowledgeService:
             except Exception as e:
                 logger.warning(f"Failed to read cache for {source.name}: {e}")
 
-        # Fetch from URL
+        # Fetch from URL using context manager to ensure proper cleanup
         try:
-            client = await self._get_client()
-            response = await client.get(source.url)
+            async with httpx.AsyncClient(
+                timeout=30.0,
+                headers={"User-Agent": "AI-Chat-Knowledge-Fetcher/1.0"},
+                follow_redirects=True,
+            ) as client:
+                response = await client.get(source.url)
 
-            if response.status_code != 200:
-                logger.error(
-                    f"Failed to fetch {source.name}: HTTP {response.status_code}"
-                )
-                return None
+                if response.status_code != 200:
+                    logger.error(
+                        f"Failed to fetch {source.name}: HTTP {response.status_code}"
+                    )
+                    return None
 
-            content = response.text
+                content = response.text
 
             # Extract text from HTML (basic extraction)
             content = self._extract_text_from_html(content)
