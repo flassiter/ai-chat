@@ -22,37 +22,38 @@ data_directory = "./data"          # SQLite database and attachments location
 # =============================================================================
 # AWS Bedrock Models
 # =============================================================================
-[models.bedrock-claude]
+[models.bedrock-opus]
 provider = "bedrock"
-name = "Claude 3.5 Sonnet"
-model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-region = "us-east-1"              # Optional, defaults to AWS CLI config
+name = "Claude Opus 4.5"
+model_id = "us.anthropic.claude-opus-4-5-20251101-v1:0"
+region = "us-east-1"
+supports_images = true
+supports_documents = true
+supports_reasoning = true
+max_tokens = 8192
+temperature = 0.7
+
+[models.bedrock-sonnet]
+provider = "bedrock"
+name = "Claude Sonnet 4.5"
+model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+region = "us-east-1"
+supports_images = true
+supports_documents = true
+supports_reasoning = true
+max_tokens = 8192
+temperature = 0.7
+
+[models.bedrock-haiku]
+provider = "bedrock"
+name = "Claude Haiku 4.5"
+model_id = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+region = "us-east-1"
 supports_images = true
 supports_documents = true
 supports_reasoning = false
 max_tokens = 8192
 temperature = 0.7
-
-[models.bedrock-claude-thinking]
-provider = "bedrock"
-name = "Claude 3.5 Sonnet (Extended Thinking)"
-model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-region = "us-east-1"
-supports_images = true
-supports_documents = true
-supports_reasoning = true
-reasoning_budget_tokens = 10000
-max_tokens = 8192
-
-[models.bedrock-nova]
-provider = "bedrock"
-name = "Amazon Nova Pro"
-model_id = "amazon.nova-pro-v1:0"
-region = "us-east-1"
-supports_images = true
-supports_documents = false
-supports_reasoning = false
-max_tokens = 4096
 
 # =============================================================================
 # Local OpenAI-Compatible Models
