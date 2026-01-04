@@ -9,7 +9,7 @@ from typing import AsyncIterator, Literal
 class Message:
     """Represents a single message in the conversation."""
 
-    role: Literal["user", "assistant"]
+    role: Literal["user", "assistant", "system"]
     content: str
     images: list[bytes] = field(default_factory=list)
     documents: list[tuple[str, bytes]] = field(default_factory=list)  # (filename, data)

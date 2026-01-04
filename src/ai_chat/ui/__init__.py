@@ -1,5 +1,6 @@
 """UI components for AI Chat application."""
 
+from .agent_selector import AgentSelector
 from .chat_display import ChatDisplay
 from .chat_widget import ChatWidget
 from .conversation_sidebar import ConversationSidebar
@@ -8,10 +9,11 @@ from .main_window import MainWindow
 from .model_selector import ModelSelector
 
 __all__ = [
-    "MainWindow",
-    "ChatWidget",
+    "AgentSelector",
     "ChatDisplay",
-    "InputWidget",
-    "ModelSelector",
+    "ChatWidget",
     "ConversationSidebar",
+    "InputWidget",
+    "MainWindow",
+    "ModelSelector",
 ]

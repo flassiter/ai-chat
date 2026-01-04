@@ -13,6 +13,7 @@ from .attachments import (
     MAX_FILE_SIZE_MB,
 )
 from .chat import ChatService
+from .knowledge import KnowledgeService
 from .document import (
     GeneratedDocument,
     detect_document_marker,
@@ -33,6 +34,7 @@ from .storage_models import (
 
 __all__ = [
     "ChatService",
+    "KnowledgeService",
     "Attachment",
     "AttachmentError",
     "UnsupportedFormatError",

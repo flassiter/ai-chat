@@ -5,12 +5,13 @@ import logging
 from typing import Optional
 
 from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtWidgets import QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from ai_chat.config.models import Config
 from ai_chat.providers.base import ProviderError
 from ai_chat.services import ChatService
 from ai_chat.services.storage import StorageService
+from ai_chat.ui.agent_selector import AgentSelector
 from ai_chat.ui.chat_display import ChatDisplay
 from ai_chat.ui.input_widget import InputWidget
 from ai_chat.ui.model_selector import ModelSelector
@@ -68,9 +69,18 @@ class ChatWidget(QWidget):
         # Get theme from config
         theme = self.config.app.theme
 
-        # Model selector at top
+        # Selector row (agent + model)
+        selector_layout = QHBoxLayout()
+
+        # Agent selector
+        self.agent_selector = AgentSelector(self.config)
+        selector_layout.addWidget(self.agent_selector)
+
+        # Model selector
         self.model_selector = ModelSelector(self.config)
-        layout.addWidget(self.model_selector)
+        selector_layout.addWidget(self.model_selector)
+
+        layout.addLayout(selector_layout)
 
         # Chat display (main area) with theme and source mode
         self.chat_display = ChatDisplay(
@@ -90,11 +100,24 @@ class ChatWidget(QWidget):
 
     def _connect_signals(self) -> None:
         """Connect widget signals."""
+        # Agent selection changed
+        self.agent_selector.agent_changed.connect(self._on_agent_changed)
+
         # Model selection changed
         self.model_selector.model_changed.connect(self._on_model_changed)
 
         # Message submitted
         self.input_widget.message_submitted.connect(self._on_message_submitted)
+
+    def _on_agent_changed(self, agent_key: str) -> None:
+        """
+        Handle agent selection change.
+
+        Args:
+            agent_key: Selected agent key
+        """
+        logger.info(f"Agent changed to: {agent_key}")
+        self.chat_service.set_agent(agent_key)
 
     def _on_model_changed(self, model_key: str) -> None:
         """

@@ -2,9 +2,11 @@
 
 from .loader import load_config
 from .models import (
+    AgentConfig,
     AppConfig,
     Config,
     DocumentConfig,
+    KnowledgeSource,
     LoggingConfig,
     ModelConfig,
     ProviderType,
@@ -13,9 +15,11 @@ from .models import (
 
 __all__ = [
     "load_config",
-    "Config",
+    "AgentConfig",
     "AppConfig",
+    "Config",
     "DocumentConfig",
+    "KnowledgeSource",
     "LoggingConfig",
     "ModelConfig",
     "ProviderType",

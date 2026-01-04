@@ -87,8 +87,9 @@ class BedrockProvider(BaseProvider):
             ConnectionError: If unable to connect
             ProviderError: For other errors
         """
-        # Convert messages to Bedrock format
-        bedrock_messages = self._convert_messages(messages)
+        # Extract system prompt and convert remaining messages
+        system_prompt, chat_messages = self._extract_system_prompt(messages)
+        bedrock_messages = self._convert_messages(chat_messages)
 
         # Prepare request
         request = {
@@ -99,6 +100,11 @@ class BedrockProvider(BaseProvider):
                 "temperature": temperature,
             },
         }
+
+        # Add system prompt if present
+        if system_prompt:
+            request["system"] = [{"text": system_prompt}]
+            logger.debug(f"Added system prompt ({len(system_prompt)} chars)")
 
         logger.info(
             f"Starting Bedrock stream: model={self.model_id}, "
@@ -153,12 +159,37 @@ class BedrockProvider(BaseProvider):
             logger.error(f"Unexpected Bedrock error: {e}", exc_info=True)
             raise ProviderError(f"Unexpected Bedrock error: {e}") from e
 
+    def _extract_system_prompt(self, messages: list[Message]) -> tuple[str, list[Message]]:
+        """
+        Extract system messages and return remaining messages.
+
+        Args:
+            messages: All messages including potential system messages
+
+        Returns:
+            Tuple of (combined_system_prompt, non_system_messages)
+        """
+        system_parts = []
+        other_messages = []
+
+        for msg in messages:
+            if msg.role == "system":
+                system_parts.append(msg.content)
+            else:
+                other_messages.append(msg)
+
+        system_prompt = "\n\n".join(system_parts) if system_parts else ""
+        return system_prompt, other_messages
+
     def _convert_messages(self, messages: list[Message]) -> list[dict]:
         """
         Convert internal Message format to Bedrock converse API format.
 
+        Note: System messages should be extracted separately using
+        _extract_system_prompt before calling this method.
+
         Args:
-            messages: Internal message list
+            messages: Internal message list (should not contain system messages)
 
         Returns:
             List of Bedrock-formatted message dicts
@@ -166,6 +197,9 @@ class BedrockProvider(BaseProvider):
         bedrock_messages = []
 
         for msg in messages:
+            # Skip system messages (should be handled separately)
+            if msg.role == "system":
+                continue
             # Basic text content
             content = [{"text": msg.content}]
 

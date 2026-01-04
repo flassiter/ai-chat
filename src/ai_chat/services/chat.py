@@ -3,8 +3,9 @@
 import logging
 from typing import AsyncIterator, Optional
 
-from ai_chat.config.models import Config, ModelConfig
+from ai_chat.config.models import AgentConfig, Config, ModelConfig
 from ai_chat.providers import BaseProvider, Message, StreamChunk, create_provider
+from ai_chat.services.knowledge import KnowledgeService
 from ai_chat.services.storage import StorageService
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ class ChatService:
         self,
         config: Config,
         storage: Optional[StorageService] = None,
+        knowledge_service: Optional[KnowledgeService] = None,
     ):
         """
         Initialize chat service with configuration.
@@ -24,18 +26,22 @@ class ChatService:
         Args:
             config: Application configuration
             storage: Optional storage service for persistence
+            knowledge_service: Optional knowledge service for agent knowledge
         """
         self.config = config
         self.storage = storage
+        self.knowledge_service = knowledge_service or KnowledgeService()
         self.messages: list[Message] = []
         self.current_model_key: str = config.app.default_model
+        self.current_agent_key: str = config.app.default_agent
 
         # Current conversation tracking (for persistence)
         self._conversation_id: Optional[str] = None
         self._conversation_title_set: bool = False
 
         logger.info(
-            f"ChatService initialized with default model: {self.current_model_key}"
+            f"ChatService initialized with default model: {self.current_model_key}, "
+            f"default agent: {self.current_agent_key}"
         )
 
     @property
@@ -228,6 +234,89 @@ class ChatService:
         """
         return self.config.models[self.current_model_key].name
 
+    def set_agent(self, agent_key: str) -> None:
+        """
+        Set the active agent.
+
+        Args:
+            agent_key: Key of agent in config
+
+        Raises:
+            ValueError: If agent_key not found
+        """
+        if agent_key not in self.config.agents:
+            available = ", ".join(self.config.agents.keys())
+            raise ValueError(f"Agent '{agent_key}' not found. Available: {available}")
+
+        self.current_agent_key = agent_key
+        logger.info(f"Switched to agent: {agent_key}")
+
+    def get_current_agent_config(self) -> AgentConfig:
+        """
+        Get configuration for currently selected agent.
+
+        Returns:
+            AgentConfig for current agent
+        """
+        return self.config.agents[self.current_agent_key]
+
+    def get_current_agent_name(self) -> str:
+        """
+        Get display name of currently selected agent.
+
+        Returns:
+            Agent display name
+        """
+        return self.config.agents[self.current_agent_key].name
+
+    async def _build_messages_with_agent(
+        self,
+        user_message: str,
+    ) -> list[Message]:
+        """
+        Build message list with agent instructions and knowledge.
+
+        Args:
+            user_message: The current user message
+
+        Returns:
+            List of messages including system message with agent context
+        """
+        agent = self.get_current_agent_config()
+        messages_to_send = []
+
+        # Build system prompt if agent has instructions
+        if agent.instructions:
+            system_content = agent.instructions
+
+            # Fetch relevant knowledge if enabled
+            if agent.inject_knowledge_automatically and agent.knowledge_sources:
+                knowledge_parts = await self.knowledge_service.fetch_relevant_knowledge(
+                    user_message, agent, max_sources=3
+                )
+                if knowledge_parts:
+                    knowledge_text = "\n\n".join(
+                        [
+                            f"### Reference: {name}\n{content}"
+                            for name, content in knowledge_parts
+                        ]
+                    )
+                    system_content += f"\n\n## Relevant Knowledge\n\n{knowledge_text}"
+                    logger.debug(
+                        f"Injected {len(knowledge_parts)} knowledge source(s) into system prompt"
+                    )
+
+            # Add system message
+            messages_to_send.append(
+                Message(role="system", content=system_content)
+            )
+            logger.debug(f"Added system prompt ({len(system_content)} chars)")
+
+        # Add existing conversation history
+        messages_to_send.extend(self.messages)
+
+        return messages_to_send
+
     def _create_provider(self, model_config: ModelConfig) -> BaseProvider:
         """
         Create provider instance for model config using factory.
@@ -285,8 +374,12 @@ class ChatService:
         # Add user message to history with attachments
         self.add_message("user", user_message, images, documents)
 
+        # Build messages with agent context (includes system prompt and knowledge)
+        messages_to_send = await self._build_messages_with_agent(user_message)
+
         logger.info(
             f"Streaming response from {model_config.name} "
+            f"with agent '{self.current_agent_key}' "
             f"(conversation length: {len(self.messages)})"
         )
 
@@ -295,7 +388,7 @@ class ChatService:
         assistant_reasoning = ""
         try:
             async for chunk in provider.stream_chat(
-                self.messages,
+                messages_to_send,
                 max_tokens=model_config.max_tokens,
                 temperature=model_config.temperature,
             ):

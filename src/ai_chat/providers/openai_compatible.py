@@ -208,6 +208,11 @@ class OpenAICompatibleProvider(BaseProvider):
         openai_messages = []
 
         for msg in messages:
+            # System messages are simple text only
+            if msg.role == "system":
+                openai_messages.append({"role": "system", "content": msg.content})
+                continue
+
             # If there are images or documents, use multimodal format
             if msg.images or msg.documents:
                 content = []

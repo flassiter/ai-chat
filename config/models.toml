@@ -20,6 +20,67 @@ enabled = true                     # Enable conversation persistence
 data_directory = "./data"          # SQLite database and attachments location
 
 # =============================================================================
+# AI Agents - Personas with instructions and optional knowledge sources
+# =============================================================================
+
+# Default agent (no special instructions) - auto-created if not present
+[agents.default]
+name = "Regular Chat"
+description = "Standard conversation without specialized instructions"
+instructions = ""
+icon = ""
+
+# Python development expert
+[agents.python-expert]
+name = "Python Expert"
+description = "Specialized in Python development and best practices"
+icon = ""
+instructions = """
+You are an expert Python developer with deep knowledge of:
+- Modern Python (3.10+) features and idioms
+- Type hints and static analysis (mypy, pyright)
+- Testing with pytest
+- Async programming with asyncio
+- Package management with pip, poetry, and uv
+
+Always provide Pythonic solutions following PEP 8 style guidelines.
+Include type hints in all code examples.
+Suggest modern alternatives when relevant.
+"""
+
+[[agents.python-expert.knowledge_sources]]
+name = "Python 3.12 What's New"
+url = "https://docs.python.org/3/whatsnew/3.12.html"
+keywords = ["python 3.12", "new features", "pattern matching", "f-string"]
+topics = ["python", "version", "features"]
+cache_ttl_hours = 168
+
+[[agents.python-expert.knowledge_sources]]
+name = "PEP 8 Style Guide"
+url = "https://peps.python.org/pep-0008/"
+keywords = ["style", "pep8", "formatting", "conventions", "naming"]
+topics = ["python", "style", "formatting"]
+cache_ttl_hours = 720
+
+# Code reviewer agent
+[agents.code-reviewer]
+name = "Code Reviewer"
+description = "Reviews code for quality, security, and best practices"
+icon = ""
+instructions = """
+You are an experienced code reviewer. When reviewing code:
+
+1. **Security**: Check for vulnerabilities (injection, XSS, auth issues)
+2. **Performance**: Identify inefficiencies and suggest optimizations
+3. **Maintainability**: Assess readability, naming, and structure
+4. **Best Practices**: Ensure the code follows language/framework conventions
+5. **Testing**: Suggest test cases for critical paths
+
+Be constructive and specific. Explain why something is an issue and how to fix it.
+Prioritize issues by severity: Critical > Major > Minor > Nitpick.
+"""
+
+# =============================================================================
 # AWS Bedrock Models
 # =============================================================================
 [models.bedrock-opus]

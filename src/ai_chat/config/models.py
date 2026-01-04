@@ -75,6 +75,43 @@ class ModelConfig(BaseModel):
                 raise ValueError("OpenAI-compatible models require model")
 
 
+class KnowledgeSource(BaseModel):
+    """Configuration for a knowledge source (URL-based)."""
+
+    url: str
+    name: str
+    keywords: list[str] = Field(default_factory=list)
+    topics: list[str] = Field(default_factory=list)
+    cache_ttl_hours: int = 24
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, v):
+        """Validate URL format."""
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("URL must start with http:// or https://")
+        return v
+
+    @field_validator("cache_ttl_hours")
+    @classmethod
+    def validate_cache_ttl(cls, v):
+        """Validate cache TTL is positive."""
+        if v <= 0:
+            raise ValueError("cache_ttl_hours must be positive")
+        return v
+
+
+class AgentConfig(BaseModel):
+    """Configuration for a single agent."""
+
+    name: str
+    description: str = ""
+    instructions: str = ""
+    icon: str = ""
+    knowledge_sources: list[KnowledgeSource] = Field(default_factory=list)
+    inject_knowledge_automatically: bool = True
+
+
 class DocumentConfig(BaseModel):
     """Configuration for document generation."""
 
@@ -104,6 +141,7 @@ class AppConfig(BaseModel):
     title: str = "AI Chat"
     theme: Literal["dark", "light", "system"] = "system"
     default_model: str
+    default_agent: str = "default"
 
     @field_validator("default_model")
     @classmethod
@@ -122,6 +160,7 @@ class Config(BaseModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     models: dict[str, ModelConfig]
+    agents: dict[str, AgentConfig] = Field(default_factory=dict)
 
     def model_post_init(self, __context):
         """Validate cross-field constraints."""
@@ -131,4 +170,21 @@ class Config(BaseModel):
             raise ValueError(
                 f"default_model '{self.app.default_model}' not found in models. "
                 f"Available models: {available}"
+            )
+
+        # Auto-inject default agent if not present
+        if "default" not in self.agents:
+            self.agents["default"] = AgentConfig(
+                name="Regular Chat",
+                description="Standard conversation without specialized instructions",
+                instructions="",
+                icon="",
+            )
+
+        # Ensure default_agent exists in agents
+        if self.app.default_agent not in self.agents:
+            available = ", ".join(self.agents.keys())
+            raise ValueError(
+                f"default_agent '{self.app.default_agent}' not found in agents. "
+                f"Available agents: {available}"
             )
