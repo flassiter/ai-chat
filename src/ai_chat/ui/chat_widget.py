@@ -4,11 +4,13 @@ import asyncio
 import logging
 from typing import Optional
 
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
 from ai_chat.config.models import Config
 from ai_chat.providers.base import ProviderError
 from ai_chat.services import ChatService
+from ai_chat.services.storage import StorageService
 from ai_chat.ui.chat_display import ChatDisplay
 from ai_chat.ui.input_widget import InputWidget
 from ai_chat.ui.model_selector import ModelSelector
@@ -19,10 +21,14 @@ logger = logging.getLogger(__name__)
 class ChatWidget(QWidget):
     """Main chat widget with model selector, display, and input."""
 
+    # Signal emitted when a message exchange completes (for sidebar refresh)
+    message_exchange_completed = pyqtSignal()
+
     def __init__(
         self,
         config: Config,
         parent: QWidget | None = None,
+        storage: Optional[StorageService] = None,
         source_mode: bool = False,
         source_context: Optional[object] = None,
     ):
@@ -32,16 +38,18 @@ class ChatWidget(QWidget):
         Args:
             config: Application configuration
             parent: Parent widget
+            storage: Optional storage service for persistence
             source_mode: Whether running as source plugin
             source_context: Source context (if in source mode)
         """
         super().__init__(parent)
         self.config = config
+        self.storage = storage
         self.source_mode = source_mode
         self.source_context = source_context
 
-        # Create chat service
-        self.chat_service = ChatService(config)
+        # Create chat service with optional storage
+        self.chat_service = ChatService(config, storage=storage)
 
         # Create UI
         self._create_ui()
@@ -50,7 +58,8 @@ class ChatWidget(QWidget):
         self._connect_signals()
 
         mode_str = "source mode" if source_mode else "standalone mode"
-        logger.info(f"ChatWidget initialized in {mode_str}")
+        persistence_str = " with persistence" if storage else ""
+        logger.info(f"ChatWidget initialized in {mode_str}{persistence_str}")
 
     def _create_ui(self) -> None:
         """Create UI components."""
@@ -145,11 +154,11 @@ class ChatWidget(QWidget):
                 if chunk.reasoning:
                     self.chat_display.append_reasoning_chunk(chunk.reasoning)
 
-                if chunk.done:
-                    break
-
             # End assistant message
             self.chat_display.append_assistant_message_end()
+
+            # Notify that message exchange completed (for sidebar refresh)
+            self.message_exchange_completed.emit()
 
             logger.info("Response streaming completed")
 
@@ -170,6 +179,42 @@ class ChatWidget(QWidget):
             # Re-enable input
             self.input_widget.set_enabled(True)
             self.input_widget.focus_input()
+
+    def new_conversation(self) -> None:
+        """Start a new conversation."""
+        self.chat_service.new_conversation()
+        self.chat_display.clear_display()
+        self.input_widget.clear_input()
+        logger.info("Started new conversation in ChatWidget")
+
+    def load_conversation(self, conversation_id: str) -> bool:
+        """
+        Load an existing conversation.
+
+        Args:
+            conversation_id: ID of conversation to load
+
+        Returns:
+            True if loaded successfully
+        """
+        if self.chat_service.load_conversation(conversation_id):
+            # Rebuild display from loaded messages
+            self.chat_display.clear_display()
+
+            for message in self.chat_service.get_history():
+                if message.role == "user":
+                    self.chat_display.append_user_message(message.content)
+                else:
+                    self.chat_display.append_assistant_message_start()
+                    self.chat_display.append_assistant_chunk(message.content)
+                    self.chat_display.append_assistant_message_end()
+
+            # Update model selector to match loaded conversation
+            self.model_selector.set_model(self.chat_service.current_model_key)
+
+            logger.info(f"Loaded conversation in ChatWidget: {conversation_id}")
+            return True
+        return False
 
     def clear_conversation(self) -> None:
         """Clear the conversation."""

@@ -89,3 +89,24 @@ class ModelSelector(QComboBox):
             model_key = self.currentData()
             return self.config.models[model_key].name
         return None
+
+    def set_model(self, model_key: str) -> bool:
+        """
+        Set the selected model by key.
+
+        Args:
+            model_key: Model key to select
+
+        Returns:
+            True if model was found and selected
+        """
+        index = self._find_model_index(model_key)
+        if index >= 0:
+            # Block signals to prevent triggering model_changed
+            self.blockSignals(True)
+            self.setCurrentIndex(index)
+            self.blockSignals(False)
+            logger.debug(f"Model selector set to: {model_key}")
+            return True
+        logger.warning(f"Model not found in selector: {model_key}")
+        return False

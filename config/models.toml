@@ -15,6 +15,10 @@ level = "INFO"                     # DEBUG | INFO | WARNING | ERROR | CRITICAL
 file = ""                          # Optional: path to log file (empty = console only)
 format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 
+[storage]
+enabled = true                     # Enable conversation persistence
+data_directory = "./data"          # SQLite database and attachments location
+
 # =============================================================================
 # AWS Bedrock Models
 # =============================================================================

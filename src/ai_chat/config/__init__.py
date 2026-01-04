@@ -8,6 +8,7 @@ from .models import (
     LoggingConfig,
     ModelConfig,
     ProviderType,
+    StorageConfig,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "LoggingConfig",
     "ModelConfig",
     "ProviderType",
+    "StorageConfig",
 ]

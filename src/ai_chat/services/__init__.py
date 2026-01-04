@@ -23,6 +23,13 @@ from .document import (
     save_document,
     can_generate_document,
 )
+from .storage import StorageService
+from .storage_models import (
+    Conversation,
+    ConversationSummary,
+    PersistedAttachment,
+    PersistedMessage,
+)
 
 __all__ = [
     "ChatService",
@@ -44,4 +51,9 @@ __all__ = [
     "add_metadata_frontmatter",
     "save_document",
     "can_generate_document",
+    "StorageService",
+    "Conversation",
+    "ConversationSummary",
+    "PersistedAttachment",
+    "PersistedMessage",
 ]

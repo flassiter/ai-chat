@@ -91,6 +91,13 @@ class LoggingConfig(BaseModel):
     format: str = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 
 
+class StorageConfig(BaseModel):
+    """Configuration for data persistence."""
+
+    enabled: bool = True
+    data_directory: str = "./data"
+
+
 class AppConfig(BaseModel):
     """General application configuration."""
 
@@ -113,6 +120,7 @@ class Config(BaseModel):
     app: AppConfig
     documents: DocumentConfig = Field(default_factory=DocumentConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
     models: dict[str, ModelConfig]
 
     def model_post_init(self, __context):

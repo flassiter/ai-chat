@@ -5,6 +5,7 @@ from typing import AsyncIterator, Optional
 
 from ai_chat.config.models import Config, ModelConfig
 from ai_chat.providers import BaseProvider, Message, StreamChunk, create_provider
+from ai_chat.services.storage import StorageService
 
 logger = logging.getLogger(__name__)
 
@@ -12,20 +13,109 @@ logger = logging.getLogger(__name__)
 class ChatService:
     """Service for managing chat conversations."""
 
-    def __init__(self, config: Config):
+    def __init__(
+        self,
+        config: Config,
+        storage: Optional[StorageService] = None,
+    ):
         """
         Initialize chat service with configuration.
 
         Args:
             config: Application configuration
+            storage: Optional storage service for persistence
         """
         self.config = config
+        self.storage = storage
         self.messages: list[Message] = []
         self.current_model_key: str = config.app.default_model
+
+        # Current conversation tracking (for persistence)
+        self._conversation_id: Optional[str] = None
+        self._conversation_title_set: bool = False
 
         logger.info(
             f"ChatService initialized with default model: {self.current_model_key}"
         )
+
+    @property
+    def conversation_id(self) -> Optional[str]:
+        """Get current conversation ID."""
+        return self._conversation_id
+
+    def new_conversation(self) -> Optional[str]:
+        """
+        Start a new conversation.
+
+        Returns:
+            Conversation ID if persistence enabled, None otherwise
+        """
+        self.messages.clear()
+        self._conversation_id = None
+        self._conversation_title_set = False
+
+        if self.storage:
+            # Create new conversation with placeholder title
+            conv = self.storage.create_conversation(
+                title="New Conversation",
+                model_key=self.current_model_key,
+            )
+            self._conversation_id = conv.id
+            logger.info(f"Created new conversation: {conv.id}")
+            return conv.id
+
+        return None
+
+    def load_conversation(self, conversation_id: str) -> bool:
+        """
+        Load an existing conversation.
+
+        Args:
+            conversation_id: ID of conversation to load
+
+        Returns:
+            True if loaded successfully
+        """
+        if not self.storage:
+            logger.warning("Cannot load conversation: no storage configured")
+            return False
+
+        conversation = self.storage.get_conversation(conversation_id)
+        if not conversation:
+            logger.warning(f"Conversation not found: {conversation_id}")
+            return False
+
+        # Clear current state
+        self.messages.clear()
+
+        # Rebuild in-memory messages from persisted messages
+        for pm in conversation.messages:
+            # Load attachment data
+            images = []
+            documents = []
+            for att in pm.attachments:
+                data = self.storage.load_attachment_data(att)
+                if att.attachment_type == "image":
+                    images.append(data)
+                else:
+                    documents.append((att.filename, data))
+
+            message = Message(
+                role=pm.role,
+                content=pm.content,
+                images=images,
+                documents=documents,
+            )
+            self.messages.append(message)
+
+        self._conversation_id = conversation_id
+        self._conversation_title_set = True  # Existing conversations have titles
+        self.current_model_key = conversation.model_key
+
+        logger.info(
+            f"Loaded conversation: {conversation_id} ({len(self.messages)} messages)"
+        )
+        return True
 
     def add_message(
         self,
@@ -33,6 +123,7 @@ class ChatService:
         content: str,
         images: Optional[list[bytes]] = None,
         documents: Optional[list[tuple[str, bytes]]] = None,
+        reasoning: Optional[str] = None,
     ) -> None:
         """
         Add a message to the conversation history.
@@ -42,6 +133,7 @@ class ChatService:
             content: Message content
             images: Optional list of image data (bytes)
             documents: Optional list of (filename, data) tuples
+            reasoning: Optional reasoning content (for assistant messages)
         """
         message = Message(
             role=role,
@@ -51,20 +143,52 @@ class ChatService:
         )
         self.messages.append(message)
 
+        # Persist if storage is configured
+        if self.storage and self._conversation_id:
+            self.storage.add_message(
+                conversation_id=self._conversation_id,
+                role=role,
+                content=content,
+                reasoning=reasoning,
+                images=images,
+                documents=documents,
+            )
+
+            # Auto-generate title from first user message
+            if role == "user" and not self._conversation_title_set:
+                title = self.storage.generate_title_from_message(content)
+                self.storage.update_conversation_title(self._conversation_id, title)
+                self._conversation_title_set = True
+                logger.debug(f"Set conversation title: {title}")
+
+        # Logging
         attachment_info = []
         if images:
             attachment_info.append(f"{len(images)} image(s)")
         if documents:
             attachment_info.append(f"{len(documents)} document(s)")
-        attachment_str = f" with {', '.join(attachment_info)}" if attachment_info else ""
+        attachment_str = (
+            f" with {', '.join(attachment_info)}" if attachment_info else ""
+        )
 
-        logger.info(f"Added {role} message to history{attachment_str} (total: {len(self.messages)})")
+        logger.info(
+            f"Added {role} message to history{attachment_str} "
+            f"(total: {len(self.messages)})"
+        )
         logger.debug(f"Message content: {content[:100]}...")
 
     def clear_history(self) -> None:
-        """Clear all conversation history."""
+        """Clear all conversation history (starts new conversation if persisting)."""
         message_count = len(self.messages)
         self.messages.clear()
+
+        # Start new conversation if storage enabled
+        if self.storage:
+            self.new_conversation()
+        else:
+            self._conversation_id = None
+            self._conversation_title_set = False
+
         logger.info(f"Cleared conversation history ({message_count} messages)")
 
     def set_model(self, model_key: str) -> None:
@@ -168,21 +292,28 @@ class ChatService:
 
         # Stream response
         assistant_message = ""
+        assistant_reasoning = ""
         try:
             async for chunk in provider.stream_chat(
                 self.messages,
                 max_tokens=model_config.max_tokens,
                 temperature=model_config.temperature,
             ):
-                # Accumulate assistant message
+                # Accumulate assistant message and reasoning
                 if chunk.content:
                     assistant_message += chunk.content
+                if chunk.reasoning:
+                    assistant_reasoning += chunk.reasoning
 
                 yield chunk
 
-            # Add complete assistant message to history
+            # Add complete assistant message to history (with reasoning for persistence)
             if assistant_message:
-                self.add_message("assistant", assistant_message)
+                self.add_message(
+                    "assistant",
+                    assistant_message,
+                    reasoning=assistant_reasoning if assistant_reasoning else None,
+                )
 
         except Exception as e:
             logger.error(f"Error during streaming: {e}", exc_info=True)
